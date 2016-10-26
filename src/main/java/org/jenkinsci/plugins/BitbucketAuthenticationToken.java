@@ -15,11 +15,13 @@ public class BitbucketAuthenticationToken extends AbstractAuthenticationToken {
 
     private Token accessToken;
     private BitbucketUser bitbucketUser;
+    private String teamName;
 
-    public BitbucketAuthenticationToken(Token accessToken, String apiKey, String apiSecret) {
+    public BitbucketAuthenticationToken(Token accessToken, String apiKey, String apiSecret, String teamName) {
         this.accessToken = accessToken;
-        this.bitbucketUser = new BitbucketApiService(apiKey, apiSecret).getUserByToken(accessToken);
-
+        this.bitbucketUser = new BitbucketApiService(apiKey, apiSecret, teamName).getUserByToken(accessToken);
+        this.teamName = teamName;
+        
         boolean authenticated = false;
 
         if (bitbucketUser != null) {

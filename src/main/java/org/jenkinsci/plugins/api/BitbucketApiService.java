@@ -22,21 +22,25 @@ import com.google.gson.Gson;
 
 public class BitbucketApiService {
 
-    private static final String API_ENDPOINT = "https://api.bitbucket.org/1.0/";
+    private static final String API_ENDPOINT = "https://api.bitbucket.org/2.0/";
 
     private OAuthService service;
 
-    public BitbucketApiService(String apiKey, String apiSecret) {
-        this(apiKey, apiSecret, null);
+    private String teamName;
+
+    public BitbucketApiService(String apiKey, String apiSecret, String teamName) {
+        this(apiKey, apiSecret, teamName, null);
     }
 
-    public BitbucketApiService(String apiKey, String apiSecret, String callback) {
+    public BitbucketApiService(String apiKey, String apiSecret, String teamName, String callback) {
         super();
         ServiceBuilder builder = new ServiceBuilder().provider(BitbucketApi.class).apiKey(apiKey).apiSecret(apiSecret);
         if (StringUtils.isNotBlank(callback)) {
             builder.callback(callback);
         }
         service = builder.build();
+
+        this.teamName = teamName;
     }
 
     public Token createRquestToken() {
@@ -52,6 +56,25 @@ public class BitbucketApiService {
         return service.getAccessToken(requestToken, v);
     }
 
+    public boolean verifyTeamMembership(Token accessToken) {
+        OAuthRequest request = new OAuthRequest(Verb.GET, API_ENDPOINT + "teams");
+        service.signRequest(accessToken, request);
+        Response response = request.send();
+        String json = response.getBody();
+        Gson gson = new Gson();
+        BitbucketUserResponce[] teams = gson.fromJson(json, BitbucketUserResponce[].class);
+        if (teams == null || teams.length == 0) {
+            return false;
+        }
+        for (BitbucketUserResponce team : teams) {
+            if (teamName.equals(team.user.getUsername())) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     public BitbucketUser getUserByToken(Token accessToken) {
         OAuthRequest request = new OAuthRequest(Verb.GET, API_ENDPOINT + "user");
         service.signRequest(accessToken, request);
@@ -59,11 +82,15 @@ public class BitbucketApiService {
         String json = response.getBody();
         Gson gson = new Gson();
         BitbucketUserResponce userResponce = gson.fromJson(json, BitbucketUserResponce.class);
-        if (userResponce != null) {
-            return userResponce.user;
-        } else {
+        if (userResponce == null) {
             return null;
         }
+
+        if (!verifyTeamMembership(accessToken)) {
+            return null;
+        }
+
+        return userResponce.user;
     }
 
     public UserDetails getUserByUsername(String username) {

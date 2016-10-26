@@ -47,12 +47,14 @@ public class BitbucketSecurityRealm extends SecurityRealm {
 
     private String clientID;
     private String clientSecret;
+    private String teamName;
 
     @DataBoundConstructor
-    public BitbucketSecurityRealm(String clientID, String clientSecret) {
+    public BitbucketSecurityRealm(String clientID, String clientSecret, String teamName) {
         super();
         this.clientID = Util.fixEmptyAndTrim(clientID);
         this.clientSecret = Util.fixEmptyAndTrim(clientSecret);
+        this.teamName = Util.fixEmptyAndTrim(teamName);
     }
 
     public BitbucketSecurityRealm() {
@@ -88,6 +90,20 @@ public class BitbucketSecurityRealm extends SecurityRealm {
         this.clientSecret = clientSecret;
     }
 
+    /**
+     * @return the teamName
+     */
+    public String getTeamName() {
+        return teamName;
+    }
+
+    /**
+     * @param teamName the team name to match against
+     */
+    public void setTeamName(String teamName) {
+        this.teamName = teamName;
+    }
+
     public HttpResponse doCommenceLogin(StaplerRequest request, @Header("Referer") final String referer) throws IOException {
 
         request.getSession().setAttribute(REFERER_ATTRIBUTE, referer);
@@ -102,7 +118,7 @@ public class BitbucketSecurityRealm extends SecurityRealm {
         }
         String callback = rootUrl + "/securityRealm/finishLogin";
 
-        BitbucketApiService bitbucketApiService = new BitbucketApiService(clientID, clientSecret, callback);
+        BitbucketApiService bitbucketApiService = new BitbucketApiService(clientID, clientSecret, teamName, callback);
 
         Token requestToken = bitbucketApiService.createRquestToken();
         request.getSession().setAttribute(ACCESS_TOKEN_ATTRIBUTE, requestToken);
@@ -120,11 +136,11 @@ public class BitbucketSecurityRealm extends SecurityRealm {
 
         Token requestToken = (Token) request.getSession().getAttribute(ACCESS_TOKEN_ATTRIBUTE);
 
-        Token accessToken = new BitbucketApiService(clientID, clientSecret).getTokenByAuthorizationCode(code, requestToken);
+        Token accessToken = new BitbucketApiService(clientID, clientSecret, teamName).getTokenByAuthorizationCode(code, requestToken);
 
         if (!accessToken.isEmpty()) {
 
-            BitbucketAuthenticationToken auth = new BitbucketAuthenticationToken(accessToken, clientID, clientSecret);
+            BitbucketAuthenticationToken auth = new BitbucketAuthenticationToken(accessToken, clientID, clientSecret, teamName);
             SecurityContextHolder.getContext().setAuthentication(auth);
 
             User u = User.current();
@@ -172,7 +188,7 @@ public class BitbucketSecurityRealm extends SecurityRealm {
         if (!(token instanceof BitbucketAuthenticationToken)) {
           throw new UserMayOrMayNotExistException("Unexpected authentication type: " + token);
         }
-        result = new BitbucketApiService(clientID, clientSecret).getUserByUsername(username);
+        result = new BitbucketApiService(clientID, clientSecret, teamName).getUserByUsername(username);
         if (result == null) {
             throw new UsernameNotFoundException("User does not exist for login: " + username);
         }
@@ -210,6 +226,10 @@ public class BitbucketSecurityRealm extends SecurityRealm {
 
             writer.startNode("clientSecret");
             writer.setValue(realm.getClientSecret());
+            writer.endNode();
+
+            writer.startNode("teamName");
+            writer.setValue(realm.getTeamName());
             writer.endNode();
         }
 
@@ -259,6 +279,8 @@ public class BitbucketSecurityRealm extends SecurityRealm {
                 realm.setClientID(value);
             } else if (node.equalsIgnoreCase("clientsecret")) {
                 realm.setClientSecret(value);
+            } else if (node.equalsIgnoreCase("teamname")) {
+                realm.setTeamName(value);
             } else {
                 throw new ConversionException("invalid node value = " + node);
             }
